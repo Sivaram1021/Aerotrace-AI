@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -29,6 +30,9 @@ import {
   useTransform
 } from 'framer-motion';
 
+// Render FastAPI backend
+const API_BASE_URL = 'https://aerotrace-ai.onrender.com';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -49,6 +53,7 @@ export default function App() {
   const y2 = useTransform(scrollY, [0, 1000], [0, -250]);
   const y3 = useTransform(scrollY, [0, 1000], [0, 150]);
 
+  // Sensor positions on map
   const sensorCoordinates = {
     NODE_01: {
       x: 220,
@@ -67,13 +72,17 @@ export default function App() {
     }
   };
 
-  // Fetch telemetry data
+  // Fetch telemetry data from Render backend
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await fetch(
-          'http://localhost:8000/api/telemetry'
+          `${API_BASE_URL}/api/telemetry`
         );
+
+        if (!res.ok) {
+          throw new Error(`Telemetry request failed: ${res.status}`);
+        }
 
         const data = await res.json();
 
@@ -93,6 +102,7 @@ export default function App() {
         data.sensors.forEach((sensor) => {
           newPoint[sensor.node_id] = sensor.ppm;
 
+          // Detect critical leak
           if (sensor.alert_level === 'red') {
             setIsLeaking(true);
 
@@ -125,13 +135,16 @@ export default function App() {
           ...prev,
           newPoint
         ].slice(-25));
+
       } catch (err) {
         console.error('Telemetry ingest failed:', err);
       }
     };
 
+    // Fetch immediately
     fetchData();
 
+    // Fetch every 2 seconds
     const interval = setInterval(fetchData, 2000);
 
     return () => clearInterval(interval);
@@ -140,28 +153,37 @@ export default function App() {
   // Trigger leak
   const triggerLeak = async () => {
     try {
-      await fetch(
-        'http://localhost:8000/api/trigger-leak',
+      const res = await fetch(
+        `${API_BASE_URL}/api/trigger-leak`,
         {
           method: 'POST'
         }
       );
 
+      if (!res.ok) {
+        throw new Error(`Trigger leak failed: ${res.status}`);
+      }
+
       setIsLeaking(true);
+
     } catch (err) {
       console.error('Failed to trigger leak:', err);
     }
   };
 
-  // Acknowledge alert
+  // Acknowledge alert / dispatch team
   const acknowledgeAlert = async () => {
     try {
-      await fetch(
-        'http://localhost:8000/api/acknowledge',
+      const res = await fetch(
+        `${API_BASE_URL}/api/acknowledge`,
         {
           method: 'POST'
         }
       );
+
+      if (!res.ok) {
+        throw new Error(`Acknowledge failed: ${res.status}`);
+      }
 
       setEventLogs((prev) =>
         prev.map((log) =>
@@ -173,6 +195,7 @@ export default function App() {
             : log
         )
       );
+
     } catch (err) {
       console.error('Failed to acknowledge alert:', err);
     }
@@ -181,14 +204,19 @@ export default function App() {
   // Reset system
   const resetSystem = async () => {
     try {
-      await fetch(
-        'http://localhost:8000/api/reset',
+      const res = await fetch(
+        `${API_BASE_URL}/api/reset`,
         {
           method: 'POST'
         }
       );
 
+      if (!res.ok) {
+        throw new Error(`Reset failed: ${res.status}`);
+      }
+
       setIsLeaking(false);
+
     } catch (err) {
       console.error('Failed to reset system:', err);
     }
@@ -203,7 +231,7 @@ export default function App() {
       West: 270
     };
 
-    return angles[direction] || 45;
+    return angles[direction] ?? 45;
   };
 
   // Page animation
@@ -385,6 +413,7 @@ export default function App() {
 
             <div className="flex items-center space-x-3">
 
+              {/* Inject Leak */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -396,6 +425,7 @@ export default function App() {
                 Inject Leak
               </motion.button>
 
+              {/* Dispatch Team */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -407,6 +437,7 @@ export default function App() {
                 Dispatch Team
               </motion.button>
 
+              {/* Reset */}
               <motion.button
                 whileHover={{ rotate: 180 }}
                 onClick={resetSystem}
@@ -641,6 +672,7 @@ export default function App() {
 
                   <div className="w-full h-[500px] bg-slate-950/80 border border-slate-800 rounded-2xl relative overflow-hidden flex items-center justify-center">
 
+                    {/* Map grid */}
                     <svg
                       className="absolute inset-0 w-full h-full stroke-slate-800/30"
                       xmlns="http://www.w3.org/2000/svg"
@@ -654,11 +686,13 @@ export default function App() {
                           height="40"
                           patternUnits="userSpaceOnUse"
                         >
+
                           <path
                             d="M 40 0 L 0 0 0 40"
                             fill="none"
                             strokeWidth="1"
                           />
+
                         </pattern>
 
                       </defs>
@@ -671,6 +705,7 @@ export default function App() {
 
                     </svg>
 
+                    {/* Sensor map */}
                     <svg className="absolute inset-0 w-full h-full drop-shadow-2xl">
 
                       {sensors.map((sensor) => {
@@ -689,6 +724,7 @@ export default function App() {
 
                           <g key={sensor.node_id}>
 
+                            {/* Methane plume */}
                             {isCritical && (
 
                               <motion.ellipse
@@ -721,6 +757,7 @@ export default function App() {
 
                             )}
 
+                            {/* Sensor point */}
                             <circle
                               cx={coords.x}
                               cy={coords.y}
@@ -732,6 +769,7 @@ export default function App() {
                               }
                             />
 
+                            {/* Critical pulse */}
                             {isCritical && (
 
                               <circle
@@ -747,6 +785,7 @@ export default function App() {
 
                             )}
 
+                            {/* Sensor label */}
                             <text
                               x={coords.x + 20}
                               y={coords.y + 5}
@@ -766,6 +805,7 @@ export default function App() {
                         );
                       })}
 
+                      {/* Plume gradient */}
                       <defs>
 
                         <radialGradient id="plumeGradient">
@@ -842,7 +882,13 @@ export default function App() {
 
                           <td className="p-4">
 
-                            <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                            <span
+                              className={`px-3 py-1 rounded-full border ${
+                                log.status === 'Mitigated'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                              }`}
+                            >
                               {log.status}
                             </span>
 
@@ -855,6 +901,12 @@ export default function App() {
                     </tbody>
 
                   </table>
+
+                  {eventLogs.length === 0 && (
+                    <div className="text-center py-12 text-slate-500">
+                      No critical events recorded yet.
+                    </div>
+                  )}
 
                 </div>
 
