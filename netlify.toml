@@ -1,0 +1,4 @@
+[build]
+  base = "methane-watch"
+  command = "npm run build"
+  publish = "build"
